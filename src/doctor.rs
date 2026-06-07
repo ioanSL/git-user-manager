@@ -105,13 +105,16 @@ fn secret_kind(s: &str) -> Option<String> {
 fn redact(s: &str) -> String {
     let mut s = s.to_string();
     for p in TOKEN_PREFIXES {
-        if let Some(idx) = s.find(p) {
-            let after = idx + p.len();
+        // Mask every occurrence of the prefix, not just the first.
+        let mut pos = 0;
+        while let Some(rel) = s[pos..].find(p) {
+            let after = pos + rel + p.len();
             let end = s[after..]
                 .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '-'))
                 .map(|o| after + o)
                 .unwrap_or(s.len());
             s.replace_range(after..end, "…");
+            pos = after + "…".len(); // advance past the prefix + the mask
         }
     }
     // Mask user:password@ → user:***@
@@ -221,7 +224,9 @@ pub fn audit() -> Result<Vec<Finding>> {
                 });
             }
             if resolved > 0 {
-                let want = signers::path().ok().map(|p| p.to_string_lossy().to_string());
+                let want = signers::path()
+                    .ok()
+                    .map(|p| p.to_string_lossy().to_string());
                 let cur = git::get(Scope::Global, "gpg.ssh.allowedSignersFile")?;
                 if cur.is_none() || (want.is_some() && cur != want) {
                     findings.push(Finding {
@@ -268,11 +273,18 @@ pub fn audit() -> Result<Vec<Finding>> {
 
 /// Whether a key path exists, expanding a leading `~/`.
 fn key_file_exists(path: &str) -> bool {
-    let expanded = if let Some(rest) = path.strip_prefix("~/") {
+    let expanded = if path == "~" {
+        match dirs::home_dir() {
+            Some(home) => home,
+            None => return true,
+        }
+    } else if let Some(rest) = path.strip_prefix("~/") {
         match dirs::home_dir() {
             Some(home) => home.join(rest),
-            None => return true, // can't tell → don't warn
+            None => return true,
         }
+    } else if path.starts_with('~') {
+        return true;
     } else {
         std::path::PathBuf::from(path)
     };
@@ -308,7 +320,9 @@ pub fn run(fix: bool, yes: bool, confirm: impl Fn(&str) -> Result<bool>) -> Resu
     }
 
     for f in &findings {
-        let Some(prompt) = f.fix_prompt() else { continue };
+        let Some(prompt) = f.fix_prompt() else {
+            continue;
+        };
         if !yes && !confirm(&format!("{prompt}?"))? {
             println!("  skipped.");
             continue;
@@ -320,4 +334,44 @@ pub fn run(fix: bool, yes: bool, confirm: impl Fn(&str) -> Result<bool>) -> Resu
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secret_kind_detects_tokens_and_userinfo() {
+        assert!(secret_kind("ghp_abcdEFGH").is_some());
+        assert!(secret_kind("glpat-xyz").is_some());
+        assert!(secret_kind("https://alice:pw@gitlab.com/").is_some());
+        assert!(secret_kind("https://github.com/foo").is_none());
+        assert!(secret_kind("just some text").is_none());
+    }
+
+    #[test]
+    fn redact_masks_all_same_prefix_tokens() {
+        let r = redact("token ghp_FIRSTaaaa; backup ghp_SECONDbbbb");
+        assert!(!r.contains("FIRSTaaaa"), "{r}");
+        assert!(!r.contains("SECONDbbbb"), "{r}");
+        assert!(r.contains("ghp_…"));
+    }
+
+    #[test]
+    fn redact_masks_userinfo_password() {
+        let r = redact("https://alice:s3cret@gitlab.com/");
+        assert!(!r.contains("s3cret"));
+        assert!(r.contains("alice:***@"));
+    }
+
+    #[test]
+    fn key_file_exists_tilde_user_not_flagged() {
+        // ~user/ can't be resolved without libc → must not false-warn.
+        assert!(key_file_exists("~nonexistentuser/.ssh/id_ed25519"));
+    }
+
+    #[test]
+    fn key_file_exists_absolute_missing_is_false() {
+        assert!(!key_file_exists("/definitely/not/here/xyz_0001"));
+    }
 }

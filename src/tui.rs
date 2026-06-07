@@ -26,15 +26,30 @@ const FIELDS: &[(&str, &str)] = &[
     ("name", "slug, e.g. work"),
     ("user.name", "display name"),
     ("user.email", "commit email"),
-    ("host", "credential host, e.g. https://github.com (optional)"),
+    (
+        "host",
+        "credential host, e.g. https://github.com (optional)",
+    ),
     ("username", "account username for HTTPS (optional)"),
-    ("remote-match", "glob for auto-switch, e.g. https://github.com/org/** (optional)"),
+    (
+        "remote-match",
+        "glob for auto-switch, e.g. https://github.com/org/** (optional)",
+    ),
     ("sign-format", "ssh | openpgp (optional)"),
     ("sign-key", "GPG id or ~/.ssh/key.pub (optional)"),
     ("auto-sign", "press space to toggle"),
-    ("ssh-key", "private key path, e.g. ~/.ssh/id_work (optional)"),
-    ("ssh-host-alias", "alias in ~/.ssh/config, e.g. github.com-work (optional)"),
-    ("ssh-hostname", "real host for the alias (default github.com)"),
+    (
+        "ssh-key",
+        "private key path, e.g. ~/.ssh/id_work (optional)",
+    ),
+    (
+        "ssh-host-alias",
+        "alias in ~/.ssh/config, e.g. github.com-work (optional)",
+    ),
+    (
+        "ssh-hostname",
+        "real host for the alias (default github.com)",
+    ),
 ];
 const F_NAME: usize = 0;
 const F_AUTOSIGN: usize = 8;
@@ -238,16 +253,8 @@ fn handle_confirm(app: &mut App, code: KeyCode) -> Result<()> {
 fn handle_list(app: &mut App, code: KeyCode) -> Result<()> {
     match code {
         KeyCode::Char('q') | KeyCode::Esc => app.should_quit = true,
-        KeyCode::Up | KeyCode::Char('k') => {
-            if app.sel > 0 {
-                app.sel -= 1;
-            }
-        }
-        KeyCode::Down | KeyCode::Char('j') => {
-            if app.sel + 1 < app.rows.len() {
-                app.sel += 1;
-            }
-        }
+        KeyCode::Up | KeyCode::Char('k') if app.sel > 0 => app.sel -= 1,
+        KeyCode::Down | KeyCode::Char('j') if app.sel + 1 < app.rows.len() => app.sel += 1,
         KeyCode::Char('u') => apply_selected(app, Scope::Global),
         KeyCode::Char('l') => apply_selected(app, Scope::Local),
         KeyCode::Char('g') => set_default_selected(app),
@@ -297,14 +304,14 @@ fn handle_edit(app: &mut App, code: KeyCode) -> Result<()> {
         KeyCode::Tab | KeyCode::Down => {
             app.edit.focus = (app.edit.focus + 1).min(FIELDS.len() - 1);
         }
-        KeyCode::BackTab | KeyCode::Up => {
-            if app.edit.focus > min_focus {
-                app.edit.focus -= 1;
-            }
-        }
+        KeyCode::BackTab | KeyCode::Up if app.edit.focus > min_focus => app.edit.focus -= 1,
         KeyCode::Char(' ') if app.edit.focus == F_AUTOSIGN => {
             let v = &mut app.edit.values[F_AUTOSIGN];
-            *v = if v == "true" { "false".into() } else { "true".into() };
+            *v = if v == "true" {
+                "false".into()
+            } else {
+                "true".into()
+            };
         }
         KeyCode::Char(c) if app.edit.focus != F_AUTOSIGN => {
             app.edit.values[app.edit.focus].push(c);
@@ -356,7 +363,8 @@ fn set_default_selected(app: &mut App) {
         return;
     };
     let name = p.name.clone();
-    let res = actions::set_default(p, &app.reg.profiles).and_then(|_| signers::sync(&app.reg.profiles).map(|_| ()));
+    let res = actions::set_default(p, &app.reg.profiles)
+        .and_then(|_| signers::sync(&app.reg.profiles).map(|_| ()));
     app.status = match res {
         Ok(()) => format!("'{name}' is now the global default identity."),
         Err(e) => format!("error: {e}"),
@@ -504,8 +512,8 @@ fn draw(f: &mut Frame, app: &App) {
         Screen::Doctor => draw_doctor(f, app, chunks[0]),
     }
 
-    let status = Paragraph::new(Line::from(app.status.as_str()))
-        .style(Style::default().fg(Color::DarkGray));
+    let status =
+        Paragraph::new(Line::from(app.status.as_str())).style(Style::default().fg(Color::DarkGray));
     f.render_widget(status, chunks[1]);
 
     if let Some(c) = &app.confirm {

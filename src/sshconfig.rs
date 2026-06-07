@@ -66,7 +66,11 @@ fn drop_between(content: &str, start: &str, end: &str, exact: bool) -> String {
     let mut skipping = false;
     for line in content.lines() {
         let t = line.trim();
-        let hit_start = if exact { t == start } else { t.starts_with(start) };
+        let hit_start = if exact {
+            t == start
+        } else {
+            t.starts_with(start)
+        };
         let hit_end = if exact { t == end } else { t.starts_with(end) };
         if skipping {
             if hit_end {
@@ -165,4 +169,67 @@ pub fn managed(profiles: &[Profile]) -> Result<Vec<(String, String)>> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::Ssh;
+
+    fn profile(name: &str, alias: Option<&str>) -> Profile {
+        Profile {
+            name: name.into(),
+            user_name: "N".into(),
+            user_email: "e".into(),
+            host: None,
+            username: None,
+            remote_match: None,
+            signing: None,
+            ssh: alias.map(|a| Ssh {
+                key: "/k".into(),
+                hostname: None,
+                host_alias: Some(a.into()),
+            }),
+        }
+    }
+
+    #[test]
+    fn strip_block_removes_only_named_block() {
+        let c = "before\n# >>> gum:work >>>\nHost x\n# <<< gum:work <<<\nafter\n";
+        let out = strip_block(c, "work");
+        assert!(out.contains("before") && out.contains("after"));
+        assert!(!out.contains("Host x"));
+    }
+
+    #[test]
+    fn strip_block_does_not_collide_on_name_prefix() {
+        // Stripping "work" must leave the "work2" block intact (exact marker match).
+        let c = "# >>> gum:work2 >>>\nHost y\n# <<< gum:work2 <<<\n";
+        let out = strip_block(c, "work");
+        assert!(out.contains("Host y"));
+    }
+
+    #[test]
+    fn render_block_contains_expected_fields() {
+        let b = render_block(&profile("work", Some("github.com-work"))).unwrap();
+        assert!(b.contains("Host github.com-work"));
+        assert!(b.contains("HostName github.com"));
+        assert!(b.contains("IdentityFile /k"));
+        assert!(b.contains("IdentitiesOnly yes"));
+    }
+
+    #[test]
+    fn render_block_none_without_alias() {
+        assert!(render_block(&profile("work", None)).is_none());
+    }
+
+    #[test]
+    fn apply_then_strip_round_trips() {
+        // Simulate: hand-written content + a managed block, then strip it.
+        let block = render_block(&profile("work", Some("gh-w"))).unwrap();
+        let combined = format!("Host manual\n  HostName 10.0.0.1\n\n{block}");
+        let stripped = strip_block(&combined, "work");
+        assert!(stripped.contains("Host manual"));
+        assert!(!stripped.contains("gh-w"));
+    }
 }

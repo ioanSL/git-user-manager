@@ -49,7 +49,10 @@ pub fn profile_settings(p: &Profile) -> Vec<(String, String)> {
             // Rewrite SSH remotes to the alias (distinct keys, so neither URL
             // form overwrites the other).
             Some(alias) => {
-                out.push((format!("url.git@{alias}:.insteadOf"), format!("git@{host}:")));
+                out.push((
+                    format!("url.git@{alias}:.insteadOf"),
+                    format!("git@{host}:"),
+                ));
                 out.push((
                     format!("url.ssh://git@{alias}/.insteadOf"),
                     format!("ssh://git@{host}/"),
@@ -132,7 +135,10 @@ pub fn enable_auto(p: &Profile) -> Result<PathBuf> {
 }
 
 pub fn disable_auto(p: &Profile) -> Result<()> {
-    let glob = p.remote_match.as_deref().context("profile has no remote glob")?;
+    let glob = p
+        .remote_match
+        .as_deref()
+        .context("profile has no remote glob")?;
     let key = git::includeif_path_key(&git::hasconfig_condition(glob));
     git::unset(Scope::Global, &key)
 }
@@ -147,4 +153,97 @@ pub fn auto_enabled(p: &Profile) -> Result<bool> {
 
 pub fn global_active(p: &Profile) -> Result<bool> {
     Ok(git::get(Scope::Global, "user.email")?.as_deref() == Some(p.user_email.as_str()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{Signing, Ssh};
+
+    fn base() -> Profile {
+        Profile {
+            name: "w".into(),
+            user_name: "N".into(),
+            user_email: "e@x".into(),
+            host: None,
+            username: None,
+            remote_match: None,
+            signing: None,
+            ssh: None,
+        }
+    }
+
+    fn has(s: &[(String, String)], k: &str) -> bool {
+        s.iter().any(|(key, _)| key == k)
+    }
+
+    #[test]
+    fn identity_only_is_name_and_email() {
+        assert_eq!(
+            identity_settings(&base()),
+            vec![
+                ("user.name".to_string(), "N".to_string()),
+                ("user.email".to_string(), "e@x".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn signing_autosign_adds_gpgsign() {
+        let mut p = base();
+        p.signing = Some(Signing {
+            format: "ssh".into(),
+            key: "/k.pub".into(),
+            auto_sign: true,
+        });
+        let s = identity_settings(&p);
+        assert!(has(&s, "gpg.format"));
+        assert!(has(&s, "user.signingkey"));
+        assert!(s.iter().any(|(k, v)| k == "commit.gpgsign" && v == "true"));
+    }
+
+    #[test]
+    fn ssh_alias_rewrites_both_url_forms_and_no_sshcommand() {
+        let mut p = base();
+        p.ssh = Some(Ssh {
+            key: "/k".into(),
+            hostname: None,
+            host_alias: Some("github.com-w".into()),
+        });
+        let s = profile_settings(&p);
+        assert!(s.contains(&(
+            "url.git@github.com-w:.insteadOf".to_string(),
+            "git@github.com:".to_string()
+        )));
+        assert!(has(&s, "url.ssh://git@github.com-w/.insteadOf"));
+        assert!(!has(&s, "core.sshCommand"));
+    }
+
+    #[test]
+    fn ssh_key_only_uses_sshcommand() {
+        let mut p = base();
+        p.ssh = Some(Ssh {
+            key: "/k".into(),
+            hostname: None,
+            host_alias: None,
+        });
+        let s = profile_settings(&p);
+        assert!(s
+            .iter()
+            .any(|(k, v)| k == "core.sshCommand" && v.contains("/k")));
+        assert!(!has(&s, "url.git@github.com-w:.insteadOf"));
+    }
+
+    #[test]
+    fn https_credentials_set_usehttppath() {
+        let mut p = base();
+        p.host = Some("https://github.com".into());
+        p.username = Some("ada".into());
+        let s = profile_settings(&p);
+        assert!(s.contains(&(
+            "credential.https://github.com.username".to_string(),
+            "ada".to_string()
+        )));
+        assert!(has(&s, "credential.useHttpPath"));
+    }
 }
