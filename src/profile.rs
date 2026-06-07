@@ -114,3 +114,47 @@ impl Registry {
         Ok(self.profiles.remove(idx))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn profile(name: &str) -> Profile {
+        Profile {
+            name: name.into(),
+            user_name: "N".into(),
+            user_email: "e".into(),
+            host: None,
+            username: None,
+            remote_match: None,
+            signing: None,
+            ssh: None,
+        }
+    }
+
+    #[test]
+    fn add_get_remove_lifecycle() {
+        let mut r = Registry::default();
+        r.add(profile("w")).unwrap();
+        assert!(r.get("w").is_some());
+        assert!(r.add(profile("w")).is_err(), "duplicate add must fail");
+        assert!(r.remove("w").is_ok());
+        assert!(r.get("w").is_none());
+        assert!(r.remove("w").is_err(), "removing absent profile must fail");
+    }
+
+    #[test]
+    fn toml_round_trip_preserves_fields() {
+        let mut r = Registry::default();
+        let mut p = profile("work");
+        p.remote_match = Some("git@github.com:org/**".into());
+        r.add(p).unwrap();
+        let text = toml::to_string_pretty(&r).unwrap();
+        let back: Registry = toml::from_str(&text).unwrap();
+        assert_eq!(back.profiles.len(), 1);
+        assert_eq!(
+            back.profiles[0].remote_match.as_deref(),
+            Some("git@github.com:org/**")
+        );
+    }
+}

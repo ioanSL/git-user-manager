@@ -67,10 +67,20 @@ Run `gum` with no arguments for the interactive TUI.
   auto-fixable), incomplete identity, missing `user.useConfigOnly`, and missing
   or unwired signing keys.
 
+## Secrets
+
+`gum` stores **no secrets**. The registry (`profiles.toml`) holds only metadata
+and *paths* — never private keys or tokens. SSH private keys stay in `~/.ssh`
+under OpenSSH's control (protect them with a passphrase + `ssh-agent`), and HTTPS
+auth goes through git's `credential.helper` (your OS keyring), never gum. `gum
+doctor` exists to catch the opposite mistake — credentials accidentally left in
+plaintext in your git config.
+
 ## Build & release
 
 ```sh
 cargo build --release                                       # local binary
+cargo test                                                  # unit + integration tests
 packaging/release.sh        # amd64+arm64 static binaries, tarballs, .debs, SHA256SUMS → dist/
 ```
 

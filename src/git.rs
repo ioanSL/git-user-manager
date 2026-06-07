@@ -41,10 +41,19 @@ fn run_get(args: &[&str]) -> Result<Option<String>> {
         .output()
         .context("failed to run git; is it installed and on PATH?")?;
     if out.status.success() {
-        Ok(Some(String::from_utf8_lossy(&out.stdout).trim().to_string()))
+        Ok(Some(
+            String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        ))
     } else {
         match out.status.code() {
-            Some(1) => Ok(None), // not set
+            Some(1) => Ok(None),
+            Some(2) => {
+                let s = String::from_utf8_lossy(&out.stdout);
+                Ok(s.lines()
+                    .last()
+                    .map(|l| l.trim().to_string())
+                    .filter(|v| !v.is_empty()))
+            }
             _ => {
                 let err = String::from_utf8_lossy(&out.stderr);
                 bail!("git {} failed: {}", args.join(" "), err.trim());
@@ -141,13 +150,34 @@ pub fn in_repo() -> bool {
         .unwrap_or(false)
 }
 
-/// Flat key for an `includeIf` path entry. git takes the section before the
-/// first dot and the variable after the last, so the condition (with its own
-/// dots and colons) becomes the subsection verbatim.
 pub fn includeif_path_key(condition: &str) -> String {
     format!("includeIf.{condition}.path")
 }
 
 pub fn hasconfig_condition(remote_glob: &str) -> String {
     format!("hasconfig:remote.*.url:{remote_glob}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hasconfig_condition_format() {
+        assert_eq!(
+            hasconfig_condition("git@github.com:org/**"),
+            "hasconfig:remote.*.url:git@github.com:org/**"
+        );
+    }
+
+    #[test]
+    fn includeif_key_keeps_condition_as_subsection() {
+        // The condition (with its own dots/colons) must sit between the first
+        // and last dot so git reads it as the subsection.
+        let cond = hasconfig_condition("git@github.com:org/**");
+        let key = includeif_path_key(&cond);
+        assert!(key.starts_with("includeIf."));
+        assert!(key.ends_with(".path"));
+        assert!(key.contains("hasconfig:remote.*.url:git@github.com:org/**"));
+    }
 }

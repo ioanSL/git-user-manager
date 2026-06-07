@@ -27,6 +27,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Add a new profile to the registry.
     Add(AddArgs),
@@ -180,7 +181,12 @@ fn run() -> Result<()> {
         Some(Command::List) => cmd_list(),
         Some(Command::Show { name }) => cmd_show(&name),
         Some(Command::Current { scope }) => cmd_current(scope.map(Into::into)),
-        Some(Command::Use { name, global: _, local, yes }) => {
+        Some(Command::Use {
+            name,
+            global: _,
+            local,
+            yes,
+        }) => {
             let scope = if local { Scope::Local } else { Scope::Global };
             cmd_use(&name, scope, yes)
         }
@@ -257,7 +263,9 @@ fn cmd_list() -> Result<()> {
 
 fn cmd_show(name: &str) -> Result<()> {
     let reg = Registry::load()?;
-    let p = reg.get(name).with_context(|| format!("no profile named '{name}'"))?;
+    let p = reg
+        .get(name)
+        .with_context(|| format!("no profile named '{name}'"))?;
     println!("name:         {}", p.name);
     println!("user.name:    {}", p.user_name);
     println!("user.email:   {}", p.user_email);
@@ -271,7 +279,10 @@ fn cmd_show(name: &str) -> Result<()> {
         println!("remote-match: {m}");
     }
     if let Some(s) = &p.signing {
-        println!("signing:      {} key={} auto-sign={}", s.format, s.key, s.auto_sign);
+        println!(
+            "signing:      {} key={} auto-sign={}",
+            s.format, s.key, s.auto_sign
+        );
     }
     if let Some(ssh) = &p.ssh {
         match &ssh.host_alias {
@@ -324,7 +335,9 @@ fn cmd_use(name: &str, scope: Scope, yes: bool) -> Result<()> {
         bail!("not inside a git repository; run from a repo or use the global scope");
     }
     let reg = Registry::load()?;
-    let p = reg.get(name).with_context(|| format!("no profile named '{name}'"))?;
+    let p = reg
+        .get(name)
+        .with_context(|| format!("no profile named '{name}'"))?;
     let settings = actions::profile_settings(p);
 
     // Preview: show old -> new for every key we will write.
@@ -351,12 +364,16 @@ fn cmd_use(name: &str, scope: Scope, yes: bool) -> Result<()> {
 
 fn cmd_default(name: &str) -> Result<()> {
     let reg = Registry::load()?;
-    let p = reg.get(name).with_context(|| format!("no profile named '{name}'"))?;
+    let p = reg
+        .get(name)
+        .with_context(|| format!("no profile named '{name}'"))?;
     actions::set_default(p, &reg.profiles)?;
     // Keep the verification file current (identity may now sign by default).
     signers::sync(&reg.profiles)?;
     println!("Set '{name}' as the global default identity.");
-    println!("  identity + signing applied to ~/.gitconfig; transport stays per-repo via auto-switch.");
+    println!(
+        "  identity + signing applied to ~/.gitconfig; transport stays per-repo via auto-switch."
+    );
     Ok(())
 }
 
@@ -407,7 +424,10 @@ fn cmd_signers_sync() -> Result<()> {
     let r = signers::sync(&reg.profiles)?;
     println!("Wrote {} signer(s) to {}.", r.written, r.path.display());
     if r.skipped > 0 {
-        println!("  {} profile(s) skipped — SSH public key not found.", r.skipped);
+        println!(
+            "  {} profile(s) skipped — SSH public key not found.",
+            r.skipped
+        );
     }
     if let Some(foreign) = r.foreign {
         println!("  note: gpg.ssh.allowedSignersFile already points at {foreign};");
@@ -426,14 +446,21 @@ fn cmd_signers_status() -> Result<()> {
         return Ok(());
     }
     for e in &entries {
-        println!("{:<28} {} {}…", e.email, e.keytype, &e.b64[..e.b64.len().min(16)]);
+        println!(
+            "{:<28} {} {}…",
+            e.email,
+            e.keytype,
+            &e.b64[..e.b64.len().min(16)]
+        );
     }
     Ok(())
 }
 
 fn cmd_auto_enable(name: &str) -> Result<()> {
     let reg = Registry::load()?;
-    let p = reg.get(name).with_context(|| format!("no profile named '{name}'"))?;
+    let p = reg
+        .get(name)
+        .with_context(|| format!("no profile named '{name}'"))?;
     let include = actions::enable_auto(p)?;
     println!("Auto-switch enabled for '{name}'.");
     if let Some(glob) = &p.remote_match {
@@ -445,7 +472,9 @@ fn cmd_auto_enable(name: &str) -> Result<()> {
 
 fn cmd_auto_disable(name: &str) -> Result<()> {
     let reg = Registry::load()?;
-    let p = reg.get(name).with_context(|| format!("no profile named '{name}'"))?;
+    let p = reg
+        .get(name)
+        .with_context(|| format!("no profile named '{name}'"))?;
     actions::disable_auto(p)?;
     println!("Auto-switch disabled for '{name}'.");
     Ok(())
@@ -455,7 +484,9 @@ fn cmd_auto_status() -> Result<()> {
     let reg = Registry::load()?;
     let mut any = false;
     for p in &reg.profiles {
-        let Some(glob) = &p.remote_match else { continue };
+        let Some(glob) = &p.remote_match else {
+            continue;
+        };
         let key = git::includeif_path_key(&git::hasconfig_condition(glob));
         if git::get(Scope::Global, &key)?.is_some() {
             println!("{:<12} enabled  ⇄ {glob}", p.name);

@@ -9,8 +9,7 @@ use std::path::PathBuf;
 use crate::git::{self, Scope};
 use crate::profile::{Profile, Registry};
 
-const HEADER: &str =
-    "# Managed by git-user-manager. Maps committer emails to SSH signing keys.\n";
+const HEADER: &str = "# Managed by git-user-manager. Maps committer emails to SSH signing keys.\n";
 
 const CONFIG_KEY: &str = "gpg.ssh.allowedSignersFile";
 
@@ -76,7 +75,12 @@ pub struct Entry {
 pub fn ssh_signing_count(profiles: &[Profile]) -> usize {
     profiles
         .iter()
-        .filter(|p| p.signing.as_ref().map(|s| s.format == "ssh").unwrap_or(false))
+        .filter(|p| {
+            p.signing
+                .as_ref()
+                .map(|s| s.format == "ssh")
+                .unwrap_or(false)
+        })
         .count()
 }
 
@@ -141,4 +145,47 @@ pub fn sync(profiles: &[Profile]) -> Result<SyncReport> {
         foreign,
         path,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_pubkey_line_cases() {
+        assert_eq!(
+            parse_pubkey_line("ssh-ed25519 AAAAbbbb me@host"),
+            Some(("ssh-ed25519".to_string(), "AAAAbbbb".to_string()))
+        );
+        assert_eq!(parse_pubkey_line("not a key"), None);
+        assert_eq!(parse_pubkey_line("ssh-ed25519"), None);
+    }
+
+    #[test]
+    fn resolve_literal_key() {
+        assert_eq!(
+            resolve_pubkey("ssh-ed25519 AAAAbbbb comment"),
+            Some(("ssh-ed25519".to_string(), "AAAAbbbb".to_string()))
+        );
+    }
+
+    #[test]
+    fn resolve_from_pub_sibling_of_private_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let priv_path = dir.path().join("id_test");
+        std::fs::write(
+            dir.path().join("id_test.pub"),
+            "ssh-ed25519 BBBBcccc me@host\n",
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_pubkey(priv_path.to_str().unwrap()),
+            Some(("ssh-ed25519".to_string(), "BBBBcccc".to_string()))
+        );
+    }
+
+    #[test]
+    fn resolve_missing_is_none() {
+        assert_eq!(resolve_pubkey("/no/such/key_999"), None);
+    }
 }
