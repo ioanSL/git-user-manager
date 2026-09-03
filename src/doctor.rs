@@ -21,6 +21,11 @@ const TOKEN_PREFIXES: &[&str] = &[
     "glpat-",
 ];
 
+/// Printed after a plaintext credential is removed from config.
+const ROTATE_NOTE: &str = "Rotate this token now — it may already be compromised — then \
+     authenticate via a credential helper (e.g. `git config --global \
+     credential.helper libsecret`) or switch the remote to SSH.";
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum Severity {
     Critical,
@@ -50,8 +55,6 @@ pub struct Finding {
     pub severity: Severity,
     pub title: String,
     pub detail: String,
-    /// Extra guidance printed when the fix is applied (e.g. "rotate the token").
-    pub after_fix: Option<String>,
     fix: Option<FixAction>,
 }
 
@@ -160,12 +163,6 @@ pub fn audit() -> Result<Vec<Finding>> {
             severity: Severity::Critical,
             title: "Plaintext credential in git config".to_string(),
             detail: format!("{location}\n       ({kind})"),
-            after_fix: Some(
-                "Rotate this token now — it may already be compromised — then \
-                 authenticate via a credential helper (e.g. `git config --global \
-                 credential.helper libsecret`) or switch the remote to SSH."
-                    .to_string(),
-            ),
             fix,
         });
     }
@@ -182,7 +179,6 @@ pub fn audit() -> Result<Vec<Finding>> {
                 name.as_deref().unwrap_or("(unset)"),
                 email.as_deref().unwrap_or("(unset)")
             ),
-            after_fix: None,
             fix: None,
         });
     }
@@ -196,7 +192,6 @@ pub fn audit() -> Result<Vec<Finding>> {
             detail: "Without it, git may silently commit under a guessed identity \
                      if none is configured."
                 .to_string(),
-            after_fix: None,
             fix: Some(FixAction::SetGlobal(
                 "user.useConfigOnly".to_string(),
                 "true".to_string(),
@@ -219,7 +214,6 @@ pub fn audit() -> Result<Vec<Finding>> {
                          the rest are missing a .pub",
                         resolved
                     ),
-                    after_fix: None,
                     fix: None,
                 });
             }
@@ -236,7 +230,6 @@ pub fn audit() -> Result<Vec<Finding>> {
                                  SSH-signed commits won't verify against your profiles. \
                                  Run `gum signers sync`."
                             .to_string(),
-                        after_fix: None,
                         fix: None,
                     });
                 }
@@ -260,7 +253,6 @@ pub fn audit() -> Result<Vec<Finding>> {
                         severity: Severity::Warn,
                         title: format!("Profile '{}' references a missing {kind} key", p.name),
                         detail: format!("{key} does not exist"),
-                        after_fix: None,
                         fix: None,
                     });
                 }
@@ -329,8 +321,8 @@ pub fn run(fix: bool, yes: bool, confirm: impl Fn(&str) -> Result<bool>) -> Resu
         }
         f.apply()?;
         println!("  fixed: {}", f.title);
-        if let Some(note) = &f.after_fix {
-            println!("  → {note}");
+        if matches!(f.fix, Some(FixAction::RemoveSection(_))) {
+            println!("  → {ROTATE_NOTE}");
         }
     }
     Ok(())
