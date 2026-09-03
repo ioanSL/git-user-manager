@@ -27,7 +27,7 @@ pub struct Ssh {
     pub host_alias: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Profile {
     /// Slug used to address the profile, e.g. "work".
     pub name: String,
@@ -124,11 +124,7 @@ mod tests {
             name: name.into(),
             user_name: "N".into(),
             user_email: "e".into(),
-            host: None,
-            username: None,
-            remote_match: None,
-            signing: None,
-            ssh: None,
+            ..Default::default()
         }
     }
 

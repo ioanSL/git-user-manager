@@ -165,11 +165,7 @@ mod tests {
             name: "w".into(),
             user_name: "N".into(),
             user_email: "e@x".into(),
-            host: None,
-            username: None,
-            remote_match: None,
-            signing: None,
-            ssh: None,
+            ..Default::default()
         }
     }
 

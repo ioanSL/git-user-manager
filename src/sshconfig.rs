@@ -181,15 +181,12 @@ mod tests {
             name: name.into(),
             user_name: "N".into(),
             user_email: "e".into(),
-            host: None,
-            username: None,
-            remote_match: None,
-            signing: None,
             ssh: alias.map(|a| Ssh {
                 key: "/k".into(),
                 hostname: None,
                 host_alias: Some(a.into()),
             }),
+            ..Default::default()
         }
     }
 
