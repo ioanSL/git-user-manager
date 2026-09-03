@@ -7,14 +7,8 @@ use std::path::PathBuf;
 use crate::git::{self, Scope};
 use crate::profile::{Profile, Registry, Ssh};
 
-pub const DEFAULT_SSH_HOST: &str = "github.com";
-
 pub fn ssh_hostname(ssh: &Ssh) -> &str {
-    ssh.hostname.as_deref().unwrap_or(DEFAULT_SSH_HOST)
-}
-
-pub fn effective_alias(p: &Profile) -> Option<String> {
-    p.ssh.as_ref().and_then(|s| s.host_alias.clone())
+    ssh.hostname.as_deref().unwrap_or("github.com")
 }
 
 /// Identity only: name/email + signing, no transport. What a global default

@@ -157,7 +157,7 @@ pub fn managed(profiles: &[Profile]) -> Result<Vec<(String, String)>> {
     let mut out = Vec::new();
     for p in profiles {
         if content.lines().any(|l| l.trim() == start_marker(&p.name)) {
-            if let Some(alias) = actions::effective_alias(p) {
+            if let Some(alias) = p.ssh.as_ref().and_then(|s| s.host_alias.clone()) {
                 out.push((p.name.clone(), alias));
             }
         }
