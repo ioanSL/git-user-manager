@@ -266,12 +266,12 @@ pub fn audit() -> Result<Vec<Finding>> {
 /// Whether a key path exists, expanding a leading `~/`.
 fn key_file_exists(path: &str) -> bool {
     let expanded = if path == "~" {
-        match dirs::home_dir() {
+        match std::env::home_dir() {
             Some(home) => home,
             None => return true,
         }
     } else if let Some(rest) = path.strip_prefix("~/") {
-        match dirs::home_dir() {
+        match std::env::home_dir() {
             Some(home) => home.join(rest),
             None => return true,
         }

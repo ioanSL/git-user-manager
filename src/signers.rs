@@ -23,7 +23,7 @@ fn is_keytype(t: &str) -> bool {
 
 fn expand(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
+        if let Some(home) = std::env::home_dir() {
             return home.join(rest);
         }
     }

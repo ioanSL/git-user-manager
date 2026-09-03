@@ -18,7 +18,7 @@ const ANY_START: &str = "# >>> gum:";
 const ANY_END: &str = "# <<< gum:";
 
 pub fn config_path() -> Result<PathBuf> {
-    let home = dirs::home_dir().context("could not determine home directory")?;
+    let home = std::env::home_dir().context("could not determine home directory")?;
     Ok(home.join(".ssh").join("config"))
 }
 

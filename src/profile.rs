@@ -56,7 +56,15 @@ pub struct Registry {
 
 impl Registry {
     pub fn config_dir() -> Result<PathBuf> {
-        let base = dirs::config_dir().context("could not determine config directory")?;
+        let home = || std::env::home_dir().context("could not determine home directory");
+        let base = if cfg!(target_os = "macos") {
+            home()?.join("Library/Application Support")
+        } else {
+            match std::env::var_os("XDG_CONFIG_HOME") {
+                Some(dir) if std::path::Path::new(&dir).is_absolute() => PathBuf::from(dir),
+                _ => home()?.join(".config"),
+            }
+        };
         Ok(base.join("git-user-manager"))
     }
 
