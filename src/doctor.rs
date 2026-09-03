@@ -265,22 +265,11 @@ pub fn audit() -> Result<Vec<Finding>> {
 
 /// Whether a key path exists, expanding a leading `~/`.
 fn key_file_exists(path: &str) -> bool {
-    let expanded = if path == "~" {
-        match std::env::home_dir() {
-            Some(home) => home,
-            None => return true,
-        }
-    } else if let Some(rest) = path.strip_prefix("~/") {
-        match std::env::home_dir() {
-            Some(home) => home.join(rest),
-            None => return true,
-        }
-    } else if path.starts_with('~') {
+    // `~user/...` can't be resolved without libc → never false-warn on it.
+    if path.starts_with('~') && !path.starts_with("~/") {
         return true;
-    } else {
-        std::path::PathBuf::from(path)
-    };
-    expanded.exists()
+    }
+    signers::expand(path).exists()
 }
 
 /// Entry point for `gum doctor [--fix] [--yes]`.

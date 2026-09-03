@@ -21,7 +21,7 @@ fn is_keytype(t: &str) -> bool {
     t.starts_with("ssh-") || t.starts_with("ecdsa-") || t.starts_with("sk-")
 }
 
-fn expand(path: &str) -> PathBuf {
+pub(crate) fn expand(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = std::env::home_dir() {
             return home.join(rest);
