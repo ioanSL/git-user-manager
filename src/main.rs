@@ -374,7 +374,7 @@ fn cmd_remove(name: &str) -> Result<()> {
     let removed = reg.remove(name)?;
     // Best-effort: tear down any auto-switch wiring and include file.
     if let Some(glob) = &removed.remote_match {
-        let key = git::includeif_path_key(&git::hasconfig_condition(glob));
+        let key = git::auto_key(glob);
         git::unset(Scope::Global, &key)?;
     }
     let include = Registry::include_path(name)?;
@@ -479,7 +479,7 @@ fn cmd_auto_status() -> Result<()> {
         let Some(glob) = &p.remote_match else {
             continue;
         };
-        let key = git::includeif_path_key(&git::hasconfig_condition(glob));
+        let key = git::auto_key(glob);
         if git::get(Scope::Global, &key)?.is_some() {
             println!("{:<12} enabled  ⇄ {glob}", p.name);
             any = true;

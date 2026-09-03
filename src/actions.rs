@@ -123,7 +123,7 @@ pub fn enable_auto(p: &Profile) -> Result<PathBuf> {
         .as_deref()
         .context("profile has no remote glob; set one before enabling auto-switch")?;
     let include = write_include_file(p)?;
-    let key = git::includeif_path_key(&git::hasconfig_condition(glob));
+    let key = git::auto_key(glob);
     git::set(Scope::Global, &key, &include.to_string_lossy())?;
     Ok(include)
 }
@@ -133,7 +133,7 @@ pub fn disable_auto(p: &Profile) -> Result<()> {
         .remote_match
         .as_deref()
         .context("profile has no remote glob")?;
-    let key = git::includeif_path_key(&git::hasconfig_condition(glob));
+    let key = git::auto_key(glob);
     git::unset(Scope::Global, &key)
 }
 
@@ -141,7 +141,7 @@ pub fn auto_enabled(p: &Profile) -> Result<bool> {
     let Some(glob) = p.remote_match.as_deref() else {
         return Ok(false);
     };
-    let key = git::includeif_path_key(&git::hasconfig_condition(glob));
+    let key = git::auto_key(glob);
     Ok(git::get(Scope::Global, &key)?.is_some())
 }
 

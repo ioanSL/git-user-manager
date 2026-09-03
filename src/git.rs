@@ -150,12 +150,9 @@ pub fn in_repo() -> bool {
         .unwrap_or(false)
 }
 
-pub fn includeif_path_key(condition: &str) -> String {
-    format!("includeIf.{condition}.path")
-}
-
-pub fn hasconfig_condition(remote_glob: &str) -> String {
-    format!("hasconfig:remote.*.url:{remote_glob}")
+/// The `includeIf` key that activates a profile when a remote matches `glob`.
+pub fn auto_key(remote_glob: &str) -> String {
+    format!("includeIf.hasconfig:remote.*.url:{remote_glob}.path")
 }
 
 #[cfg(test)]
@@ -163,21 +160,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hasconfig_condition_format() {
+    fn auto_key_puts_condition_between_first_and_last_dot() {
         assert_eq!(
-            hasconfig_condition("git@github.com:org/**"),
-            "hasconfig:remote.*.url:git@github.com:org/**"
+            auto_key("git@github.com:org/**"),
+            "includeIf.hasconfig:remote.*.url:git@github.com:org/**.path"
         );
-    }
-
-    #[test]
-    fn includeif_key_keeps_condition_as_subsection() {
-        // The condition (with its own dots/colons) must sit between the first
-        // and last dot so git reads it as the subsection.
-        let cond = hasconfig_condition("git@github.com:org/**");
-        let key = includeif_path_key(&cond);
-        assert!(key.starts_with("includeIf."));
-        assert!(key.ends_with(".path"));
-        assert!(key.contains("hasconfig:remote.*.url:git@github.com:org/**"));
     }
 }
