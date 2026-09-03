@@ -44,9 +44,6 @@ enum Command {
     /// Apply a profile's identity to a config scope (default: global).
     Use {
         name: String,
-        /// Write to ~/.gitconfig (the default).
-        #[arg(long, conflicts_with = "local")]
-        global: bool,
         /// Write to the current repo's .git/config instead of ~/.gitconfig.
         #[arg(long)]
         local: bool,
@@ -181,12 +178,7 @@ fn run() -> Result<()> {
         Some(Command::List) => cmd_list(),
         Some(Command::Show { name }) => cmd_show(&name),
         Some(Command::Current { scope }) => cmd_current(scope.map(Into::into)),
-        Some(Command::Use {
-            name,
-            global: _,
-            local,
-            yes,
-        }) => {
+        Some(Command::Use { name, local, yes }) => {
             let scope = if local { Scope::Local } else { Scope::Global };
             cmd_use(&name, scope, yes)
         }

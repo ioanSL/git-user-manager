@@ -136,10 +136,7 @@ fn use_global_writes_credentials() {
         ])
         .assert()
         .success();
-    e.gum()
-        .args(["use", "w", "--global", "-y"])
-        .assert()
-        .success();
+    e.gum().args(["use", "w", "-y"]).assert().success();
     let cfg = e.gitconfig().to_lowercase();
     assert!(cfg.contains("a@x.dev"));
     assert!(cfg.contains("usehttppath"));
