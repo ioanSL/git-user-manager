@@ -112,23 +112,23 @@ fn render_block(p: &Profile) -> Option<String> {
     ))
 }
 
+/// Append `block`, separated from any existing content by one blank line.
+fn append_block(content: &mut String, block: &str) {
+    if !content.is_empty() {
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push('\n');
+    }
+    content.push_str(block);
+}
+
 /// Upsert or remove a single profile's alias block to match its current state.
 pub fn apply_profile(p: &Profile) -> Result<()> {
-    let stripped = strip_block(&read_config()?, &p.name);
-    let content = match render_block(p) {
-        Some(block) => {
-            let mut c = stripped;
-            if !c.is_empty() && !c.ends_with('\n') {
-                c.push('\n');
-            }
-            if !c.is_empty() {
-                c.push('\n');
-            }
-            c.push_str(&block);
-            c
-        }
-        None => stripped,
-    };
+    let mut content = strip_block(&read_config()?, &p.name);
+    if let Some(block) = render_block(p) {
+        append_block(&mut content, &block);
+    }
     write_config(&content)
 }
 
@@ -143,13 +143,7 @@ pub fn sync(profiles: &[Profile]) -> Result<usize> {
     let mut count = 0;
     for p in profiles {
         if let Some(block) = render_block(p) {
-            if !content.is_empty() && !content.ends_with('\n') {
-                content.push('\n');
-            }
-            if !content.is_empty() {
-                content.push('\n');
-            }
-            content.push_str(&block);
+            append_block(&mut content, &block);
             count += 1;
         }
     }
