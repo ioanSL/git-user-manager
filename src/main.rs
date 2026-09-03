@@ -228,11 +228,7 @@ fn cmd_add(args: AddArgs) -> Result<()> {
     };
     let mut reg = Registry::load()?;
     reg.add(profile)?;
-    reg.save()?;
-    // Keep ~/.ssh/config and the allowed-signers file in sync.
-    let added = reg.get(&args.name).expect("just added");
-    sshconfig::apply_profile(added)?;
-    signers::sync(&reg.profiles)?;
+    actions::save_profile(&reg, &args.name)?;
     println!("Added profile '{}'.", args.name);
     Ok(())
 }
@@ -360,8 +356,6 @@ fn cmd_default(name: &str) -> Result<()> {
         .get(name)
         .with_context(|| format!("no profile named '{name}'"))?;
     actions::set_default(p, &reg.profiles)?;
-    // Keep the verification file current (identity may now sign by default).
-    signers::sync(&reg.profiles)?;
     println!("Set '{name}' as the global default identity.");
     println!(
         "  identity + signing applied to ~/.gitconfig; transport stays per-repo via auto-switch."
@@ -371,21 +365,7 @@ fn cmd_default(name: &str) -> Result<()> {
 
 fn cmd_remove(name: &str) -> Result<()> {
     let mut reg = Registry::load()?;
-    let removed = reg.remove(name)?;
-    // Best-effort: tear down any auto-switch wiring and include file.
-    if let Some(glob) = &removed.remote_match {
-        let key = git::auto_key(glob);
-        git::unset(Scope::Global, &key)?;
-    }
-    let include = Registry::include_path(name)?;
-    if include.exists() {
-        std::fs::remove_file(&include).ok();
-    }
-    // Drop any managed ~/.ssh/config alias block.
-    sshconfig::remove(name)?;
-    reg.save()?;
-    // Refresh allowed-signers now that the registry changed.
-    signers::sync(&reg.profiles)?;
+    actions::remove_profile(&mut reg, name)?;
     println!("Removed profile '{name}'.");
     Ok(())
 }
@@ -479,8 +459,7 @@ fn cmd_auto_status() -> Result<()> {
         let Some(glob) = &p.remote_match else {
             continue;
         };
-        let key = git::auto_key(glob);
-        if git::get(Scope::Global, &key)?.is_some() {
+        if actions::auto_enabled(p)? {
             println!("{:<12} enabled  ⇄ {glob}", p.name);
             any = true;
         }

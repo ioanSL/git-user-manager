@@ -16,8 +16,6 @@ use crate::actions;
 use crate::doctor::{self, Finding};
 use crate::git::Scope;
 use crate::profile::{Profile, Registry, Signing, Ssh};
-use crate::signers;
-use crate::sshconfig;
 
 type Term = Terminal<CrosstermBackend<Stdout>>;
 
@@ -363,8 +361,7 @@ fn set_default_selected(app: &mut App) {
         return;
     };
     let name = p.name.clone();
-    let res = actions::set_default(p, &app.reg.profiles)
-        .and_then(|_| signers::sync(&app.reg.profiles).map(|_| ()));
+    let res = actions::set_default(p, &app.reg.profiles);
     app.status = match res {
         Ok(()) => format!("'{name}' is now the global default identity."),
         Err(e) => format!("error: {e}"),
@@ -450,13 +447,8 @@ fn save_edit(app: &mut App) -> Result<()> {
             *slot = profile;
         }
     }
-    app.reg.save()?;
     let saved = app.edit.values[F_NAME].trim().to_string();
-    // Keep ~/.ssh/config and allowed-signers in sync with the saved profile.
-    if let Some(p) = app.reg.get(&saved) {
-        let _ = sshconfig::apply_profile(p);
-    }
-    let _ = signers::sync(&app.reg.profiles);
+    actions::save_profile(&app.reg, &saved)?;
     app.refresh()?;
     // Keep the cursor on the profile we just saved.
     if let Some(idx) = app.rows.iter().position(|r| r.name == saved) {
@@ -468,20 +460,15 @@ fn save_edit(app: &mut App) -> Result<()> {
 }
 
 fn delete_profile(app: &mut App, name: &str) -> Result<()> {
-    match app.reg.remove(name) {
-        Ok(removed) => {
-            // Tear down auto-switch wiring + include file + ssh alias block.
-            let _ = actions::disable_auto(&removed);
-            if let Ok(path) = Registry::include_path(name) {
-                let _ = std::fs::remove_file(path);
-            }
-            let _ = sshconfig::remove(name);
-            let _ = signers::sync(&app.reg.profiles);
-            app.reg.save()?;
+    match actions::remove_profile(&mut app.reg, name) {
+        Ok(_) => {
             app.refresh()?;
             app.status = format!("Deleted '{name}'.");
         }
-        Err(e) => app.status = format!("error: {e}"),
+        Err(e) => {
+            let _ = app.refresh(); // registry on disk may differ from memory now
+            app.status = format!("error: {e}");
+        }
     }
     Ok(())
 }

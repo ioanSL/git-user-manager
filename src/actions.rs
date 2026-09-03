@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::git::{self, Scope};
 use crate::profile::{Profile, Registry, Ssh};
+use crate::{signers, sshconfig};
 
 pub fn ssh_hostname(ssh: &Ssh) -> &str {
     ssh.hostname.as_deref().unwrap_or("github.com")
@@ -99,7 +100,31 @@ pub fn set_default(p: &Profile, all: &[Profile]) -> Result<()> {
     for (key, value) in identity_settings(p) {
         git::set(Scope::Global, &key, &value)?;
     }
+    signers::sync(all)?;
     Ok(())
+}
+
+/// Persist the registry, then re-sync the files derived from it for `name`.
+pub fn save_profile(reg: &Registry, name: &str) -> Result<()> {
+    reg.save()?;
+    if let Some(p) = reg.get(name) {
+        sshconfig::apply_profile(p)?;
+    }
+    signers::sync(&reg.profiles)?;
+    Ok(())
+}
+
+/// Remove a profile and tear down everything gum generated for it.
+pub fn remove_profile(reg: &mut Registry, name: &str) -> Result<Profile> {
+    let removed = reg.remove(name)?;
+    if removed.remote_match.is_some() {
+        disable_auto(&removed)?;
+    }
+    let _ = std::fs::remove_file(Registry::include_path(name)?);
+    sshconfig::remove(name)?;
+    reg.save()?;
+    signers::sync(&reg.profiles)?;
+    Ok(removed)
 }
 
 /// Generate (or regenerate) the per-profile include file.
