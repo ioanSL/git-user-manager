@@ -32,15 +32,7 @@ impl Env {
     }
 
     fn git(&self, dir: &Path, args: &[&str]) {
-        let status = std::process::Command::new("git")
-            .args(args)
-            .current_dir(dir)
-            .env("HOME", self.path())
-            .env("XDG_CONFIG_HOME", self.path().join(".config"))
-            .env("GIT_CONFIG_NOSYSTEM", "1")
-            .status()
-            .unwrap();
-        assert!(status.success(), "git {args:?} failed");
+        self.git_out(dir, args);
     }
 
     fn git_out(&self, dir: &Path, args: &[&str]) -> String {
@@ -52,6 +44,11 @@ impl Env {
             .env("GIT_CONFIG_NOSYSTEM", "1")
             .output()
             .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
         String::from_utf8_lossy(&out.stdout).trim().to_string()
     }
 
